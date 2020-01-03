@@ -103,15 +103,21 @@ class TestHTTPBasic:
     
 # ----------------------------------- table -----------------------------------
 class TestHTTPTable:
+    def drop_table(self, table_name):
+        requests.delete(HOST + 'tables/' + table_name)
+
+    def test_clear(self):
+        res = requests.get(HOST + 'tables', params={'offset':0, 'page_size':10})
+        
+        for t in res.json()['tables']:
+            # clear all tables in milvus
+            pass
+
     def test_tables(self):
-    
-        res = requests.get(HOST + 'tables', params={'offset':0, 'page_size':5})
-        logging.getLogger().info(res.json())
+        res = requests.get(HOST + 'tables', params={'offset':0, 'page_size':10})
         assert ('tables' in res.json().keys())
     
-    
-    def test_post_tables(self):
-        
+    def test_post_tables(self):    
         req = { 
             "table_name": "mytest",
             "dimension": 10,
@@ -119,12 +125,10 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
 
     def test_post_tables_name_numbers(self):
-        
         req = { 
             "table_name": "mytest22",
             "dimension": 10,
@@ -132,12 +136,11 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
+        self.drop_table(req['table_name'])
 
     def test_post_tables_name_underscore(self):
-        
         req = { 
             "table_name": "mytest__22",
             "dimension": 10,
@@ -145,12 +148,11 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
+        self.drop_table(req['table_name'])
 
     def test_post_tables_name_short(self):
-        
         req = { 
             "table_name": "y",
             "dimension": 10,
@@ -158,12 +160,11 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
+        self.drop_table(req['table_name'])
 
     def test_post_tables_name_underscore_only(self):
-        
         req = { 
             "table_name": "____",
             "dimension": 10,
@@ -171,12 +172,11 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
+        self.drop_table(req['table_name'])
 
     def test_post_tables_name_space(self):
-        
         req = { 
             "table_name": "_1mMtt t",
             "dimension": 10,
@@ -184,12 +184,10 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert 'Invalid table name: %s. Table name can only contain numbers, letters, and underscores.' % req['table_name'] == res.json()['message']
 
     def test_post_tables_name_number_only(self):
-        
         req = { 
             "table_name": "22",
             "dimension": 10,
@@ -197,12 +195,10 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert 'Invalid table name: %s. The first character of a table name must be an underscore or letter.' % req['table_name'] == res.json()['message']
 
     def test_post_tables_name_start_number(self):
-        
         req = { 
             "table_name": "33mytest",
             "dimension": 10,
@@ -210,12 +206,10 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert 'Invalid table name: %s. The first character of a table name must be an underscore or letter.' % req['table_name'] == res.json()['message']
 
     def test_post_tables_name_float(self):
-        
         req = { 
             "table_name": "mytest1.2",
             "dimension": 10,
@@ -223,16 +217,14 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert ('Invalid table name: %s' % req['table_name'] in res.json()['message'])
 
     #TODO:
     def test_post_tables_name_very_long(self):
-        pass
+        assert False
 
     def test_post_tables_name_han(self):
-        
         req = { 
             "table_name": "mytest汉字",
             "dimension": 10,
@@ -240,12 +232,10 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert ('Invalid table name: %s' % req['table_name'] in res.json()['message'])
 
     def test_post_tables_name_upper(self):
-        
         req = { 
             "table_name": "MYtest",
             "dimension": 10,
@@ -253,9 +243,9 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
+        self.drop_table(req['table_name'])
 
     #TODO: not finished
     def test_post_tables_same(self):
@@ -266,22 +256,17 @@ class TestHTTPTable:
             "metric_type": MetricType.L2
             }
         res = requests.post(HOST + 'tables', json.dumps(req))
-        logging.getLogger().info(res.json())
         assert res.json()['code'] == 9
         assert res.json()['message'] == 'Table already exists'
-        pass
 
     def test_options_tables(self):
-    
-        res = requests.options(HOST + 'tables')
-        # logging.getLogger().info(res.json())
+        res = requests.options(HOST + 'tables')        
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'Success'
 
     def test_single_table(self):
         table_name = 'mytest'
         res = requests.get(HOST + 'tables/' + table_name)
-        # logging.getLogger().info(res.json())
         assert ('table_name' in res.json().keys())
         assert res.json()['table_name'] == table_name
 
@@ -293,7 +278,6 @@ class TestHTTPTable:
     def test_single_table_not_exists(self):
         table_name = 'non_exist'
         res = requests.get(HOST + 'tables/' + table_name)
-        logging.getLogger().info(res.json())
         assert res.status_code == 404
         assert ('Table %s not found' % table_name in res.json()['message'])
         assert res.json()['code'] == 4
@@ -303,13 +287,13 @@ class TestHTTPTable:
         table_name = 'mytest'
         res = requests.delete(HOST + 'tables/' + table_name)
         # logging.getLogger().info(res.json())
-        logging.getLogger().info(res.text)
+        # logging.getLogger().info(res.text)
         assert res.status_code == 204
+        assert False
     
     def test_del_table_not_exist(self):
         table_name = 'non_exist'
         res = requests.delete(HOST + 'tables/' + table_name)
-        # logging.getLogger().info(res.json())
         assert res.status_code == 404
         assert ('Table %s does not exist' % table_name in res.json()['message'])
         assert res.json()['code'] == 4
@@ -329,10 +313,8 @@ class TestHTTPTable:
         assert 'Invalid table name: %s. The first character of a table name must be an underscore or letter.' % table_name == res.json()['message']
 
     def test_options_single_table(self):
-    
         table_name = 'mytest'
         res = requests.options(HOST + 'tables/' + table_name)
-        # logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
 
@@ -340,7 +322,6 @@ class TestHTTPTable:
     
         table_name = 'non_exist'
         res = requests.options(HOST + 'tables/' + table_name)
-        # logging.getLogger().info(res.json())
         assert res.json()['code'] == 0
         assert res.json()['message'] == 'OK'
 
