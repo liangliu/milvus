@@ -19,7 +19,12 @@ class TestHTTPCMD:
     system_prefix = 'system/'
     version = '0.6.0'
     status = 'OK'
-    mode = 'GPU'
+    # mode = 'GPU'
+
+    def get_mode(self, args):
+        base_url = 'http://%s:%s/' % (args['ip'], args['port'])
+        res = requests.get(base_url + 'system/mode')
+        return res.json()['reply'].upper()
 
     def test_http_cmd_version(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
@@ -70,8 +75,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -595,7 +601,7 @@ class TestHTTPCMD:
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode?q=myparams')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_3(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
@@ -607,67 +613,67 @@ class TestHTTPCMD:
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode?q=10')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_5(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '/mode')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_6(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '//mode')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_7(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '/////mode')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_8(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode/')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_9(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '/mode/')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_10(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode//')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_11(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '//mode//')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_12(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode/////')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_13(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + '/////mode/////')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_14(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode/?')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     # TODO return code diff with other apis
     def test_http_cmd_mode_15(self, args):
@@ -682,13 +688,13 @@ class TestHTTPCMD:
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode?')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_17(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode??')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_18(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
@@ -726,7 +732,7 @@ class TestHTTPCMD:
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode#')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_24(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
@@ -743,19 +749,19 @@ class TestHTTPCMD:
         res = requests.get(mm)
         # logging.getLogger().info(res.text)
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_26(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode?a=1&b=2')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_mode_27(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
         res = requests.get(base_url + self.system_prefix + 'mode?a=1%26b=2')
         assert res.status_code == 200
-        assert res.json()['reply'] == self.mode
+        assert 'reply' in res.json().keys()
 
     def test_http_cmd_post_mode_1(self, args):
         base_url = 'http://%s:%s/' % (args['ip'], args['port'])
@@ -831,8 +837,10 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        # logging.getLogger().info(real_res)
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -848,8 +856,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -859,8 +868,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -870,8 +880,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -881,8 +892,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -892,8 +904,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -903,8 +916,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -914,8 +928,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -925,8 +940,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -936,8 +952,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -947,8 +964,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -958,8 +976,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -978,8 +997,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -989,8 +1009,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -1032,8 +1053,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -1054,8 +1076,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -1065,8 +1088,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
@@ -1076,8 +1100,9 @@ class TestHTTPCMD:
         assert res.status_code == 200
         assert 'reply' in res.json().keys()
         real_res = eval(res.json()['reply'])
-        assert 'gpu0_memory_total' in real_res.keys()
-        assert 'gpu0_memory_used' in real_res.keys()
+        if self.get_mode(args) == 'GPU':
+            assert 'gpu0_memory_total' in real_res.keys()
+            assert 'gpu0_memory_used' in real_res.keys()
         assert 'memory_total' in real_res.keys()
         assert 'memory_used' in real_res.keys()
 
