@@ -11,6 +11,7 @@ Please mark all change in change log and use the issue from GitHub
 - \#805 - IVFTest.gpu_seal_test unittest failed
 - \#831 - Judge branch error in CommonUtil.cpp
 - \#977 - Server crash when create tables concurrently
+- \#990 - check gpu resources setting when assign repeated value
 - \#995 - table count set to 0 if no tables found
 - \#1010 - improve error message when offset or page_size is equal 0
 - \#1022 - check if partition name is legal
@@ -18,6 +19,12 @@ Please mark all change in change log and use the issue from GitHub
 - \#1029 - check if table exists when try to delete partition
 - \#1066 - optimize http insert and search speed
 - \#1067 - Add binary vectors support in http server
+- \#1075 - improve error message when page size or offset is illegal
+- \#1082 - check page_size or offset value to avoid float
+- \#1115 - http server support load table into memory
+- \#1211 - Server down caused by searching with index_type: HNSW
+- \#1240 - Update license declaration
+- \#1298 - Unittest failed when on CPU2GPU case
 
 ## Feature
 - \#216 - Add CLI to get server info
@@ -30,6 +37,7 @@ Please mark all change in change log and use the issue from GitHub
 - \#813 - Add push mode for prometheus monitor
 - \#815 - Support MinIO storage
 - \#823 - Support binary vector tanimoto/jaccard/hamming metric
+- \#853 - Support HNSW
 - \#910 - Change Milvus c++ standard to c++17
 
 ## Improvement
@@ -44,6 +52,9 @@ Please mark all change in change log and use the issue from GitHub
 - \#966 - Update NOTICE.md
 - \#1002 - Rename minio to s3 in Storage Config section
 - \#1078 - Move 'insert_buffer_size' to Cache Config section
+- \#1105 - Error message is not clear when creating IVFSQ8H index without gpu resources
+- \#741, #856, #879, #973, #1100, #1163, #1175, #1206, #1219, #1225, #1233, #1258, #1265, #1274, #1292, #1305 - Various fixes and improvements for Milvus documentation.
+- \#1320 - Remove debug logging from faiss
 
 ## Task
 
