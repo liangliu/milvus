@@ -1,13 +1,25 @@
-// Copyright (C) 2019-2020 Zilliz. All rights reserved.
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
 //
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
-// with the License. You may obtain a copy of the License at
+//   http://www.apache.org/licenses/LICENSE-2.0
 //
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software distributed under the License
-// is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-// or implied. See the License for the specific language governing permissions and limitations under the License.
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+#include <gtest/gtest.h>
+
+#include <boost/filesystem.hpp>
+#include <thread>
+#include <vector>
 
 #include "db/IndexFailedChecker.h"
 #include "db/OngoingFileChecker.h"
@@ -17,14 +29,6 @@
 #include "db/meta/SqliteMetaImpl.h"
 #include "utils/Exception.h"
 #include "utils/Status.h"
-
-#include <gtest/gtest.h>
-#include <boost/filesystem.hpp>
-#include <thread>
-#include <vector>
-#include <fiu-local.h>
-#include <fiu-control.h>
-#include "db/utils.h"
 
 TEST(DBMiscTest, EXCEPTION_TEST) {
     milvus::Exception ex1(100, "error");
@@ -88,20 +92,7 @@ TEST(DBMiscTest, UTILS_TEST) {
     options.slave_paths_.push_back("/tmp/milvus_test/slave_2");
 
     const std::string TABLE_NAME = "test_tbl";
-
-    fiu_init(0);
-    milvus::Status status;
-    FIU_ENABLE_FIU("CommonUtil.CreateDirectory.create_parent_fail");
-    status = milvus::engine::utils::CreateTablePath(options, TABLE_NAME);
-    ASSERT_FALSE(status.ok());
-    fiu_disable("CommonUtil.CreateDirectory.create_parent_fail");
-
-    FIU_ENABLE_FIU("CreateTablePath.creat_slave_path");
-    status = milvus::engine::utils::CreateTablePath(options, TABLE_NAME);
-    ASSERT_FALSE(status.ok());
-    fiu_disable("CreateTablePath.creat_slave_path");
-
-    status = milvus::engine::utils::CreateTablePath(options, TABLE_NAME);
+    auto status = milvus::engine::utils::CreateTablePath(options, TABLE_NAME);
     ASSERT_TRUE(status.ok());
     ASSERT_TRUE(boost::filesystem::exists(options.path_));
     for (auto& path : options.slave_paths_) {
@@ -122,8 +113,8 @@ TEST(DBMiscTest, UTILS_TEST) {
     file.file_type_ = 3;
     file.date_ = 155000;
     status = milvus::engine::utils::GetTableFilePath(options, file);
-    ASSERT_FALSE(status.ok());
-    ASSERT_TRUE(file.location_.empty());
+    ASSERT_TRUE(status.ok());
+    ASSERT_FALSE(file.location_.empty());
 
     status = milvus::engine::utils::DeleteTablePath(options, TABLE_NAME);
     ASSERT_TRUE(status.ok());
@@ -131,28 +122,7 @@ TEST(DBMiscTest, UTILS_TEST) {
     status = milvus::engine::utils::DeleteTableFilePath(options, file);
     ASSERT_TRUE(status.ok());
 
-    status = milvus::engine::utils::CreateTableFilePath(options, file);
-    ASSERT_TRUE(status.ok());
-
-    FIU_ENABLE_FIU("CreateTableFilePath.fail_create");
-    status = milvus::engine::utils::CreateTableFilePath(options, file);
-    ASSERT_FALSE(status.ok());
-    fiu_disable("CreateTableFilePath.fail_create");
-
-    status = milvus::engine::utils::GetTableFilePath(options, file);
-    ASSERT_FALSE(file.location_.empty());
-
-    FIU_ENABLE_FIU("CommonUtil.CreateDirectory.create_parent_fail");
-    status = milvus::engine::utils::GetTableFilePath(options, file);
-    ASSERT_FALSE(file.location_.empty());
-    fiu_disable("CommonUtil.CreateDirectory.create_parent_fail");
-
-    FIU_ENABLE_FIU("GetTableFilePath.enable_s3");
-    status = milvus::engine::utils::GetTableFilePath(options, file);
-    ASSERT_FALSE(file.location_.empty());
-    fiu_disable("GetTableFilePath.enable_s3");
-
-    status = milvus::engine::utils::DeleteTableFilePath(options, file);
+    status = milvus::engine::utils::DeleteSegment(options, file);
     ASSERT_TRUE(status.ok());
 }
 
@@ -162,30 +132,30 @@ TEST(DBMiscTest, CHECKER_TEST) {
         milvus::engine::meta::TableFileSchema schema;
         schema.table_id_ = "aaa";
         schema.file_id_ = "5000";
-        checker.MarkFailedIndexFile(schema, "5000 fail");
+        checker.MarkFailedIndexFile(schema);
         schema.table_id_ = "bbb";
         schema.file_id_ = "5001";
-        checker.MarkFailedIndexFile(schema, "5001 fail");
+        checker.MarkFailedIndexFile(schema);
 
-        std::string err_msg;
-        checker.GetErrMsgForTable("aaa", err_msg);
-        ASSERT_EQ(err_msg, "5000 fail");
+        std::vector<std::string> failed_files;
+        checker.GetFailedIndexFileOfTable("aaa", failed_files);
+        ASSERT_EQ(failed_files.size(), 1UL);
 
         schema.table_id_ = "bbb";
         schema.file_id_ = "5002";
-        checker.MarkFailedIndexFile(schema, "5002 fail");
-        checker.MarkFailedIndexFile(schema, "5002 fail");
+        checker.MarkFailedIndexFile(schema);
+        checker.MarkFailedIndexFile(schema);
 
         milvus::engine::meta::TableFilesSchema table_files = {schema};
         checker.IgnoreFailedIndexFiles(table_files);
         ASSERT_TRUE(table_files.empty());
 
-        checker.GetErrMsgForTable("bbb", err_msg);
-        ASSERT_EQ(err_msg, "5001 fail");
+        checker.GetFailedIndexFileOfTable("bbb", failed_files);
+        ASSERT_EQ(failed_files.size(), 2UL);
 
         checker.MarkSucceedIndexFile(schema);
-        checker.GetErrMsgForTable("bbb", err_msg);
-        ASSERT_EQ(err_msg, "5001 fail");
+        checker.GetFailedIndexFileOfTable("bbb", failed_files);
+        ASSERT_EQ(failed_files.size(), 1UL);
     }
 
     {

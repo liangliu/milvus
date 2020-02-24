@@ -122,6 +122,7 @@ ClientTest::Test(const std::string& address, const std::string& port) {
     }
 
     std::vector<std::pair<int64_t, milvus::RowRecord>> search_record_array;
+    std::vector<int64_t> search_id_array;
     {  // build search vectors
         for (int64_t i = 0; i < NQ; i++) {
             std::vector<milvus::RowRecord> record_array;
@@ -129,14 +130,42 @@ ClientTest::Test(const std::string& address, const std::string& port) {
             int64_t index = i * BATCH_ROW_COUNT + SEARCH_TARGET;
             milvus_sdk::Utils::BuildVectors(index, index + 1, record_array, record_ids, TABLE_DIMENSION);
             search_record_array.push_back(std::make_pair(record_ids[0], record_array[0]));
+            search_id_array.push_back(record_ids[0]);
         }
     }
 
-    milvus_sdk::Utils::Sleep(3);
+    {  // flush buffer
+        stat = conn->FlushTable(TABLE_NAME);
+        std::cout << "FlushTable function call status: " << stat.message() << std::endl;
+    }
+
+    {  // get table information
+        milvus::TableInfo table_info;
+        stat = conn->ShowTableInfo(TABLE_NAME, table_info);
+        milvus_sdk::Utils::PrintTableInfo(table_info);
+        std::cout << "ShowTableInfo function call status: " << stat.message() << std::endl;
+    }
+
+    {
+        // get vector data by id
+        milvus::RowRecord vector_data;
+        stat = conn->GetVectorByID(TABLE_NAME, search_id_array[0], vector_data);
+        std::cout << "The vector " << search_id_array[0] << " has " << vector_data.float_data.size()
+                                   << " float elements" << std::endl;
+        std::cout << "GetVectorByID function call status: " << stat.message() << std::endl;
+    }
+
     {  // search vectors
         std::vector<std::string> partition_tags;
         milvus::TopKQueryResult topk_query_result;
         milvus_sdk::Utils::DoSearch(conn, TABLE_NAME, partition_tags, TOP_K, NPROBE, search_record_array,
+                                    topk_query_result);
+    }
+
+    {  // search vectors by id
+        std::vector<std::string> partition_tags;
+        milvus::TopKQueryResult topk_query_result;
+        milvus_sdk::Utils::DoSearch(conn, TABLE_NAME, partition_tags, TOP_K, NPROBE, search_id_array,
                                     topk_query_result);
     }
 
@@ -154,9 +183,30 @@ ClientTest::Test(const std::string& address, const std::string& port) {
         milvus_sdk::Utils::PrintIndexParam(index2);
     }
 
+    {  // get table information
+        milvus::TableInfo table_info;
+        stat = conn->ShowTableInfo(TABLE_NAME, table_info);
+        milvus_sdk::Utils::PrintTableInfo(table_info);
+        std::cout << "ShowTableInfo function call status: " << stat.message() << std::endl;
+    }
+
     {  // preload table
         stat = conn->PreloadTable(TABLE_NAME);
         std::cout << "PreloadTable function call status: " << stat.message() << std::endl;
+    }
+
+    {
+        // delete by id
+        std::vector<int64_t> delete_ids = {search_id_array[0], search_id_array[1]};
+        stat = conn->DeleteByID(TABLE_NAME, delete_ids);
+        std::cout << "DeleteByID function call status: " << stat.message() << std::endl;
+
+        stat = conn->FlushTable(TABLE_NAME);
+        std::cout << "FlushTable function call status: " << stat.message() << std::endl;
+
+        // compact table
+        stat = conn->CompactTable(TABLE_NAME);
+        std::cout << "CompactTable function call status: " << stat.message() << std::endl;
     }
 
     {  // search vectors
@@ -175,15 +225,6 @@ ClientTest::Test(const std::string& address, const std::string& port) {
         std::cout << TABLE_NAME << "(" << row_count << " rows)" << std::endl;
     }
 
-    {  // delete by range
-        milvus::Range rg;
-        rg.start_value = milvus_sdk::Utils::CurrentTmDate(-3);
-        rg.end_value = milvus_sdk::Utils::CurrentTmDate(-2);
-
-        stat = conn->DeleteByDate(TABLE_NAME, rg);
-        std::cout << "DeleteByDate function call status: " << stat.message() << std::endl;
-    }
-
     {  // drop table
         stat = conn->DropTable(TABLE_NAME);
         std::cout << "DropTable function call status: " << stat.message() << std::endl;
@@ -193,6 +234,7 @@ ClientTest::Test(const std::string& address, const std::string& port) {
         std::string status = conn->ServerStatus();
         std::cout << "Server status before disconnect: " << status << std::endl;
     }
+
     milvus::Connection::Destroy(conn);
     {  // server status
         std::string status = conn->ServerStatus();

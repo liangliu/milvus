@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <faiss/utils/ConcurrentBitset.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -146,6 +148,44 @@ class VecIndex : public cache::DataObj {
         return std::make_pair(nullptr, nullptr);
     }
     ////////////////
+
+    virtual Status
+    GetVectorById(const int64_t n, const int64_t* xid, float* x, const Config& cfg = Config()) {
+        ENGINE_LOG_ERROR << "GetVectorById not support";
+        return Status::OK();
+    }
+
+    virtual Status
+    GetVectorById(const int64_t n, const int64_t* xid, uint8_t* x, const Config& cfg = Config()) {
+        ENGINE_LOG_ERROR << "GetVectorById not support";
+        return Status::OK();
+    }
+
+    virtual Status
+    SearchById(const int64_t& nq, const int64_t* xq, float* dist, int64_t* ids, const Config& cfg = Config()) {
+        ENGINE_LOG_ERROR << "SearchById not support";
+        return Status::OK();
+    }
+    //
+    //    virtual Status
+    //    SearchById(const int64_t& nq, const uint8_t * xq, faiss::ConcurrentBitsetPtr bitset, float* dist, int64_t*
+    //    ids, const Config& cfg = Config()){
+    //        ENGINE_LOG_ERROR << "SearchById with uint8_t not support";
+    //        return Status::OK();
+    //    }
+
+    virtual Status
+    SetBlacklist(faiss::ConcurrentBitsetPtr list) {
+        ENGINE_LOG_ERROR << "SetBlacklist not support";
+        return Status::OK();
+    }
+
+    virtual Status
+    GetBlacklist(faiss::ConcurrentBitsetPtr& list) {
+        ENGINE_LOG_ERROR << "GetBlacklist not support";
+        return Status::OK();
+    }
+
  private:
     int64_t size_ = 0;
 };

@@ -43,6 +43,14 @@ ToKnowhereErrorCode(const ErrorCode error_code) {
     return KNOWHERE_ERROR_CODE_BASE + error_code;
 }
 
+constexpr ErrorCode WAL_SUCCESS = 0;
+constexpr ErrorCode WAL_ERROR_CODE_BASE = 60000;
+
+constexpr ErrorCode
+ToWalErrorCode(const ErrorCode error_code) {
+    return WAL_ERROR_CODE_BASE + error_code;
+}
+
 // server error code
 constexpr ErrorCode SERVER_UNEXPECTED_ERROR = ToServerErrorCode(1);
 constexpr ErrorCode SERVER_UNSUPPORTED_ERROR = ToServerErrorCode(2);
@@ -59,7 +67,6 @@ constexpr ErrorCode SERVER_BUILD_INDEX_ERROR = ToServerErrorCode(12);
 constexpr ErrorCode SERVER_TABLE_NOT_EXIST = ToServerErrorCode(100);
 constexpr ErrorCode SERVER_INVALID_TABLE_NAME = ToServerErrorCode(101);
 constexpr ErrorCode SERVER_INVALID_TABLE_DIMENSION = ToServerErrorCode(102);
-constexpr ErrorCode SERVER_INVALID_TIME_RANGE = ToServerErrorCode(103);
 constexpr ErrorCode SERVER_INVALID_VECTOR_DIMENSION = ToServerErrorCode(104);
 constexpr ErrorCode SERVER_INVALID_INDEX_TYPE = ToServerErrorCode(105);
 constexpr ErrorCode SERVER_INVALID_ROWRECORD = ToServerErrorCode(106);
@@ -83,12 +90,19 @@ constexpr ErrorCode DB_ALREADY_EXIST = ToDbErrorCode(4);
 constexpr ErrorCode DB_INVALID_PATH = ToDbErrorCode(5);
 constexpr ErrorCode DB_INCOMPATIB_META = ToDbErrorCode(6);
 constexpr ErrorCode DB_INVALID_META_URI = ToDbErrorCode(7);
+constexpr ErrorCode DB_EMPTY_TABLE = ToDbErrorCode(8);
 
 // knowhere error code
 constexpr ErrorCode KNOWHERE_ERROR = ToKnowhereErrorCode(1);
 constexpr ErrorCode KNOWHERE_INVALID_ARGUMENT = ToKnowhereErrorCode(2);
 constexpr ErrorCode KNOWHERE_UNEXPECTED_ERROR = ToKnowhereErrorCode(3);
 constexpr ErrorCode KNOWHERE_NO_SPACE = ToKnowhereErrorCode(4);
+
+// knowhere error code
+constexpr ErrorCode WAL_ERROR = ToWalErrorCode(1);
+constexpr ErrorCode WAL_META_ERROR = ToWalErrorCode(2);
+constexpr ErrorCode WAL_FILE_ERROR = ToWalErrorCode(3);
+constexpr ErrorCode WAL_PATH_ERROR = ToWalErrorCode(4);
 
 namespace server {
 class ServerException : public std::exception {

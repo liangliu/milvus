@@ -1,17 +1,22 @@
-// Copyright (C) 2019-2020 Zilliz. All rights reserved.
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
 //
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
-// with the License. You may obtain a copy of the License at
+//   http://www.apache.org/licenses/LICENSE-2.0
 //
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software distributed under the License
-// is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-// or implied. See the License for the specific language governing permissions and limitations under the License.
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 #include <gtest/gtest.h>
-#include <fiu-control.h>
-#include <fiu-local.h>
+
 #include <boost/filesystem.hpp>
 #include <random>
 #include <thread>
@@ -39,7 +44,7 @@ BuildTableSchema() {
 }
 
 void
-BuildVectors(uint64_t n, milvus::engine::VectorsData& vectors) {
+BuildVectors(uint64_t n, uint64_t batch_index, milvus::engine::VectorsData& vectors) {
     vectors.vector_count_ = n;
     vectors.float_data_.clear();
     vectors.float_data_.resize(n * TABLE_DIM);
@@ -47,7 +52,12 @@ BuildVectors(uint64_t n, milvus::engine::VectorsData& vectors) {
     for (uint64_t i = 0; i < n; i++) {
         for (int64_t j = 0; j < TABLE_DIM; j++) data[TABLE_DIM * i + j] = drand48();
         data[TABLE_DIM * i] += i / 2000.;
+
+        vectors.id_array_.push_back(n * batch_index + i);
     }
+
+    //    milvus::engine::SimpleIDGenerator id_gen;
+    //    id_gen.GetNextIDNumbers(n, vectors.id_array_);
 }
 
 }  // namespace
@@ -62,22 +72,15 @@ TEST_F(MySqlDBTest, DB_TEST) {
     ASSERT_TRUE(stat.ok());
     ASSERT_EQ(table_info_get.dimension_, TABLE_DIM);
 
-    uint64_t nb = 50;
-    milvus::engine::VectorsData xb;
-    BuildVectors(nb, xb);
-
     uint64_t qb = 5;
     milvus::engine::VectorsData qxb;
-    BuildVectors(qb, qxb);
-
-    db_->InsertVectors(TABLE_NAME, "", qxb);
-    ASSERT_EQ(qxb.id_array_.size(), qb);
+    BuildVectors(qb, 0, qxb);
 
     std::thread search([&]() {
         milvus::engine::ResultIds result_ids;
         milvus::engine::ResultDistances result_distances;
         int k = 10;
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(2));
 
         INIT_TIMER;
         std::stringstream ss;
@@ -90,15 +93,15 @@ TEST_F(MySqlDBTest, DB_TEST) {
             prev_count = count;
 
             START_TIMER;
+
             std::vector<std::string> tags;
             stat = db_->Query(dummy_context_, TABLE_NAME, tags, k, 10, qxb, result_ids, result_distances);
             ss << "Search " << j << " With Size " << count / milvus::engine::M << " M";
             STOP_TIMER(ss.str());
 
             ASSERT_TRUE(stat.ok());
+            ASSERT_EQ(result_ids.size(), qb * k);
             for (auto i = 0; i < qb; ++i) {
-                //                std::cout << results[k][0].first << " " << target_ids[k] << std::endl;
-                //                ASSERT_EQ(results[k][0].first, target_ids[k]);
                 ss.str("");
                 ss << "Result [" << i << "]:";
                 for (auto t = 0; t < k; t++) {
@@ -107,27 +110,37 @@ TEST_F(MySqlDBTest, DB_TEST) {
                 /* LOG(DEBUG) << ss.str(); */
             }
             ASSERT_TRUE(count >= prev_count);
-            std::this_thread::sleep_for(std::chrono::seconds(3));
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
-
-        std::cout << "All search done!" << std::endl;
     });
 
-    int loop = INSERT_LOOP;
+    int loop = 100;
 
     for (auto i = 0; i < loop; ++i) {
-        //        if (i==10) {
-        //            db_->InsertVectors(TABLE_NAME, "", qb, qxb.data(), target_ids);
-        //            ASSERT_EQ(target_ids.size(), qb);
-        //        } else {
-        //            db_->InsertVectors(TABLE_NAME, "", nb, xb.data(), vector_ids);
-        //        }
-        xb.id_array_.clear();
-        db_->InsertVectors(TABLE_NAME, "", xb);
+        if (i == 40) {
+            db_->InsertVectors(TABLE_NAME, "", qxb);
+            ASSERT_EQ(qxb.id_array_.size(), qb);
+        } else {
+            uint64_t nb = 50;
+            milvus::engine::VectorsData xb;
+            BuildVectors(nb, i, xb);
+
+            db_->InsertVectors(TABLE_NAME, "", xb);
+            ASSERT_EQ(xb.id_array_.size(), nb);
+        }
+
+        stat = db_->Flush();
+        ASSERT_TRUE(stat.ok());
+
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 
     search.join();
+
+    uint64_t count;
+    stat = db_->GetTableRowCount(TABLE_NAME, count);
+    ASSERT_TRUE(stat.ok());
+    ASSERT_GT(count, 0);
 }
 
 TEST_F(MySqlDBTest, SEARCH_TEST) {
@@ -174,7 +187,9 @@ TEST_F(MySqlDBTest, SEARCH_TEST) {
     stat = db_->InsertVectors(TABLE_NAME, "", xb);
     ASSERT_TRUE(stat.ok());
 
-    sleep(2);  // wait until build index finish
+    //    sleep(2);  // wait until build index finish
+    stat = db_->Flush();
+    ASSERT_TRUE(stat.ok());
 
     std::vector<std::string> tags;
     milvus::engine::ResultIds result_ids;
@@ -199,17 +214,6 @@ TEST_F(MySqlDBTest, ARHIVE_DISK_CHECK) {
     }
     ASSERT_TRUE(bfound);
 
-    fiu_init(0);
-    FIU_ENABLE_FIU("MySQLMetaImpl.AllTable.null_connection");
-    stat = db_->AllTables(table_schema_array);
-    ASSERT_FALSE(stat.ok());
-
-    FIU_ENABLE_FIU("MySQLMetaImpl.AllTable.throw_exception");
-    stat = db_->AllTables(table_schema_array);
-    ASSERT_FALSE(stat.ok());
-    fiu_disable("MySQLMetaImpl.AllTable.null_connection");
-    fiu_disable("MySQLMetaImpl.AllTable.throw_exception");
-
     milvus::engine::meta::TableSchema table_info_get;
     table_info_get.table_id_ = TABLE_NAME;
     stat = db_->DescribeTable(table_info_get);
@@ -223,29 +227,22 @@ TEST_F(MySqlDBTest, ARHIVE_DISK_CHECK) {
     db_->Size(size);
 
     int64_t nb = 10;
-    milvus::engine::VectorsData xb;
-    BuildVectors(nb, xb);
 
     int loop = INSERT_LOOP;
     for (auto i = 0; i < loop; ++i) {
+        milvus::engine::VectorsData xb;
+        BuildVectors(nb, i, xb);
         db_->InsertVectors(TABLE_NAME, "", xb);
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    //    std::this_thread::sleep_for(std::chrono::seconds(1));
+    stat = db_->Flush();
+    ASSERT_TRUE(stat.ok());
 
     db_->Size(size);
     LOG(DEBUG) << "size=" << size;
     ASSERT_LE(size, 1 * milvus::engine::G);
-
-    FIU_ENABLE_FIU("MySQLMetaImpl.Size.null_connection");
-    stat = db_->Size(size);
-    ASSERT_FALSE(stat.ok());
-    fiu_disable("MySQLMetaImpl.Size.null_connection");
-    FIU_ENABLE_FIU("MySQLMetaImpl.Size.throw_exception");
-    stat = db_->Size(size);
-    ASSERT_FALSE(stat.ok());
-    fiu_disable("MySQLMetaImpl.Size.throw_exception");
 }
 
 TEST_F(MySqlDBTest, DELETE_TEST) {
@@ -268,24 +265,26 @@ TEST_F(MySqlDBTest, DELETE_TEST) {
     db_->Size(size);
 
     int64_t nb = INSERT_LOOP;
-    milvus::engine::VectorsData xb;
-    BuildVectors(nb, xb);
 
     int loop = 20;
     for (auto i = 0; i < loop; ++i) {
+        milvus::engine::VectorsData xb;
+        BuildVectors(nb, i, xb);
         db_->InsertVectors(TABLE_NAME, "", xb);
         std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
 
-    //    std::vector<engine::meta::DateT> dates;
-    //    stat = db_->DropTable(TABLE_NAME, dates);
+    stat = db_->Flush();
+    ASSERT_TRUE(stat.ok());
+
+    stat = db_->DropTable(TABLE_NAME);
     ////    std::cout << "5 sec start" << std::endl;
     //    std::this_thread::sleep_for(std::chrono::seconds(5));
     ////    std::cout << "5 sec finish" << std::endl;
-    //    ASSERT_TRUE(stat.ok());
+    ASSERT_TRUE(stat.ok());
     //
-    //    db_->HasTable(TABLE_NAME, has_table);
-    //    ASSERT_FALSE(has_table);
+    db_->HasTable(TABLE_NAME, has_table);
+    ASSERT_FALSE(has_table);
 }
 
 TEST_F(MySqlDBTest, PARTITION_TEST) {
@@ -303,12 +302,6 @@ TEST_F(MySqlDBTest, PARTITION_TEST) {
         stat = db_->CreatePartition(table_name, partition_name, partition_tag);
         ASSERT_TRUE(stat.ok());
 
-        fiu_init(0);
-        FIU_ENABLE_FIU("MySQLMetaImpl.CreatePartition.aleady_exist");
-        stat = db_->CreatePartition(table_name, partition_name, partition_tag);
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.CreatePartition.aleady_exist");
-
         // not allow nested partition
         stat = db_->CreatePartition(partition_name, "dumy", "dummy");
         ASSERT_FALSE(stat.ok());
@@ -317,14 +310,14 @@ TEST_F(MySqlDBTest, PARTITION_TEST) {
         stat = db_->CreatePartition(table_name, partition_name, partition_tag);
         ASSERT_FALSE(stat.ok());
 
-        milvus::engine::VectorsData xb;
-        BuildVectors(INSERT_BATCH, xb);
-
         milvus::engine::IDNumbers vector_ids;
         vector_ids.resize(INSERT_BATCH);
         for (int64_t k = 0; k < INSERT_BATCH; k++) {
             vector_ids[k] = i * INSERT_BATCH + k;
         }
+
+        milvus::engine::VectorsData xb;
+        BuildVectors(INSERT_BATCH, i, xb);
 
         db_->InsertVectors(table_name, partition_tag, xb);
         ASSERT_EQ(vector_ids.size(), INSERT_BATCH);
@@ -360,7 +353,7 @@ TEST_F(MySqlDBTest, PARTITION_TEST) {
         const int64_t topk = 10;
         const int64_t nprobe = 10;
         milvus::engine::VectorsData xq;
-        BuildVectors(nq, xq);
+        BuildVectors(nq, 0, xq);
 
         // specify partition tags
         std::vector<std::string> tags = {"0", std::to_string(PARTITION_COUNT - 1)};
@@ -387,84 +380,15 @@ TEST_F(MySqlDBTest, PARTITION_TEST) {
         ASSERT_EQ(result_ids.size() / topk, nq);
     }
 
-    fiu_init(0);
-    {
-        //create partition with dummy name
-        stat = db_->CreatePartition(table_name, "", "6");
-        ASSERT_TRUE(stat.ok());
+    stat = db_->DropPartition(table_name + "_0");
+    ASSERT_TRUE(stat.ok());
 
-        // ensure DescribeTable failed
-        FIU_ENABLE_FIU("MySQLMetaImpl.DescribeTable.throw_exception");
-        stat = db_->CreatePartition(table_name, "", "7");
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.DescribeTable.throw_exception");
+    stat = db_->DropPartitionByTag(table_name, "1");
+    ASSERT_TRUE(stat.ok());
 
-        //Drop partition will failed,since it firstly drop partition meta table.
-        FIU_ENABLE_FIU("MySQLMetaImpl.DropTable.null_connection");
-        stat = db_->DropPartition(table_name + "_5");
-        //TODO(sjh): add assert expr, since DropPartion always return Status::OK() for now.
-        //ASSERT_TRUE(stat.ok());
-        fiu_disable("MySQLMetaImpl.DropTable.null_connection");
+    stat = db_->DropIndex(table_name);
+    ASSERT_TRUE(stat.ok());
 
-        std::vector<milvus::engine::meta::TableSchema> partition_schema_array;
-        stat = db_->ShowPartitions(table_name, partition_schema_array);
-        ASSERT_TRUE(stat.ok());
-        ASSERT_EQ(partition_schema_array.size(), PARTITION_COUNT + 1);
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.ShowPartitions.null_connection");
-        stat = db_->ShowPartitions(table_name, partition_schema_array);
-        ASSERT_FALSE(stat.ok());
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.ShowPartitions.throw_exception");
-        stat = db_->ShowPartitions(table_name, partition_schema_array);
-        ASSERT_FALSE(stat.ok());
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.DropTable.throw_exception");
-        stat = db_->DropPartition(table_name + "_4");
-        fiu_disable("MySQLMetaImpl.DropTable.throw_exception");
-
-        stat = db_->DropPartition(table_name + "_0");
-        ASSERT_TRUE(stat.ok());
-    }
-
-    {
-        FIU_ENABLE_FIU("MySQLMetaImpl.GetPartitionName.null_connection");
-        stat = db_->DropPartitionByTag(table_name, "1");
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.GetPartitionName.null_connection");
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.GetPartitionName.throw_exception");
-        stat = db_->DropPartitionByTag(table_name, "1");
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.GetPartitionName.throw_exception");
-
-        stat = db_->DropPartitionByTag(table_name, "1");
-        ASSERT_TRUE(stat.ok());
-
-        stat = db_->CreatePartition(table_name, table_name + "_1", "1");
-        FIU_ENABLE_FIU("MySQLMetaImpl.DeleteTableFiles.null_connection");
-        stat = db_->DropPartition(table_name + "_1");
-        fiu_disable("MySQLMetaImpl.DeleteTableFiles.null_connection");
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.DeleteTableFiles.throw_exception");
-        stat = db_->DropPartition(table_name + "_1");
-        fiu_disable("MySQLMetaImpl.DeleteTableFiles.throw_exception");
-    }
-
-    {
-        FIU_ENABLE_FIU("MySQLMetaImpl.DropTableIndex.null_connection");
-        stat = db_->DropIndex(table_name);
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.DropTableIndex.null_connection");
-
-        FIU_ENABLE_FIU("MySQLMetaImpl.DropTableIndex.throw_exception");
-        stat = db_->DropIndex(table_name);
-        ASSERT_FALSE(stat.ok());
-        fiu_disable("MySQLMetaImpl.DropTableIndex.throw_exception");
-
-        stat = db_->DropIndex(table_name);
-        ASSERT_TRUE(stat.ok());
-    }
+    stat = db_->DropTable(table_name);
+    ASSERT_TRUE(stat.ok());
 }
-
-

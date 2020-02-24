@@ -27,6 +27,7 @@ aux_source_directory(${MILVUS_ENGINE_SRC}/db db_main_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/engine db_engine_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/insert db_insert_files)
 aux_source_directory(${MILVUS_ENGINE_SRC}/db/meta db_meta_files)
+aux_source_directory(${MILVUS_ENGINE_SRC}/db/wal db_wal_files)
 
 set(grpc_service_files
         ${MILVUS_ENGINE_SRC}/grpc/gen-milvus/milvus.grpc.pb.cc
@@ -54,9 +55,11 @@ set(scheduler_files
 
 aux_source_directory(${MILVUS_THIRDPARTY_SRC}/easyloggingpp thirdparty_easyloggingpp_files)
 aux_source_directory(${MILVUS_THIRDPARTY_SRC}/nlohmann thirdparty_nlohmann_files)
+aux_source_directory(${MILVUS_THIRDPARTY_SRC}/dablooms thirdparty_dablooms_files)
 set(thirdparty_files
         ${thirdparty_easyloggingpp_files}
         ${thirdparty_nlohmann_files}
+        ${thirdparty_dablooms_files}
         )
 
 aux_source_directory(${MILVUS_ENGINE_SRC}/server server_files)
@@ -102,6 +105,13 @@ set(storage_files
         ${storage_s3_files}
         )
 
+aux_source_directory(${MILVUS_ENGINE_SRC}/codecs codecs_files)
+aux_source_directory(${MILVUS_ENGINE_SRC}/codecs/default codecs_default_files)
+
+aux_source_directory(${MILVUS_ENGINE_SRC}/segment segment_files)
+
+aux_source_directory(${MILVUS_ENGINE_SRC}/store store_files)
+
 set(entry_file
         ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
@@ -122,6 +132,7 @@ set(common_files
         ${db_engine_files}
         ${db_insert_files}
         ${db_meta_files}
+        ${db_wal_files}
         ${metrics_files}
         ${thirdparty_files}
         ${scheduler_files}
@@ -130,6 +141,10 @@ set(common_files
         ${helper_files}
         ${server_context_files}
         ${tracing_files}
+        ${codecs_files}
+        ${codecs_default_files}
+        ${segment_files}
+        ${store_files}
         )
 
 set(unittest_libs
@@ -143,7 +158,6 @@ set(unittest_libs
         gtest_main
         gmock_main
         pthread
-        metrics
         gfortran
         opentracing
         opentracing_mocktracer
@@ -154,10 +168,14 @@ set(unittest_libs
         crypto
         )
 if (MILVUS_WITH_PROMETHEUS)
-    set(unittest_libs ${unittest_libs}
+    set(prometheus_lib
             prometheus-cpp-push
             prometheus-cpp-pull
             prometheus-cpp-core
+            curl
+            )
+    set(unittest_libs ${unittest_libs}
+            ${prometheus_lib}
             )
 endif ()
 set(unittest_libs ${unittest_libs}
@@ -184,4 +202,5 @@ add_subdirectory(wrapper)
 add_subdirectory(metrics)
 add_subdirectory(scheduler)
 add_subdirectory(server)
+add_subdirectory(thirdparty)
 add_subdirectory(storage)

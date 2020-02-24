@@ -11,20 +11,21 @@
 
 #pragma once
 
-#include "MetaTypes.h"
-#include "db/Options.h"
-#include "db/Types.h"
-#include "utils/Status.h"
-
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "MetaTypes.h"
+#include "db/Options.h"
+#include "db/Types.h"
+#include "utils/Status.h"
+
 namespace milvus {
 namespace engine {
 namespace meta {
 
+static const char* META_ENVIRONMENT = "Environment";
 static const char* META_TABLES = "Tables";
 static const char* META_TABLEFILES = "TableFiles";
 
@@ -55,6 +56,15 @@ class Meta {
     UpdateTableFlag(const std::string& table_id, int64_t flag) = 0;
 
     virtual Status
+    UpdateTableFlushLSN(const std::string& table_id, uint64_t flush_lsn) = 0;
+
+    virtual Status
+    GetTableFlushLSN(const std::string& table_id, uint64_t& flush_lsn) = 0;
+
+    virtual Status
+    GetTableFilesByFlushLSN(uint64_t flush_lsn, TableFilesSchema& table_files) = 0;
+
+    virtual Status
     DropTable(const std::string& table_id) = 0;
 
     virtual Status
@@ -64,10 +74,11 @@ class Meta {
     CreateTableFile(TableFileSchema& file_schema) = 0;
 
     virtual Status
-    DropDataByDate(const std::string& table_id, const DatesT& dates) = 0;
+    GetTableFiles(const std::string& table_id, const std::vector<size_t>& ids, TableFilesSchema& table_files) = 0;
 
     virtual Status
-    GetTableFiles(const std::string& table_id, const std::vector<size_t>& ids, TableFilesSchema& table_files) = 0;
+    GetTableFilesBySegmentId(const std::string& table_id, const std::string& segment_id,
+                             TableFilesSchema& table_files) = 0;
 
     virtual Status
     UpdateTableFile(TableFileSchema& file_schema) = 0;
@@ -88,7 +99,8 @@ class Meta {
     DropTableIndex(const std::string& table_id) = 0;
 
     virtual Status
-    CreatePartition(const std::string& table_name, const std::string& partition_name, const std::string& tag) = 0;
+    CreatePartition(const std::string& table_name, const std::string& partition_name, const std::string& tag,
+                    uint64_t lsn) = 0;
 
     virtual Status
     DropPartition(const std::string& partition_name) = 0;
@@ -100,11 +112,10 @@ class Meta {
     GetPartitionName(const std::string& table_name, const std::string& tag, std::string& partition_name) = 0;
 
     virtual Status
-    FilesToSearch(const std::string& table_id, const std::vector<size_t>& ids, const DatesT& dates,
-                  DatePartionedTableFilesSchema& files) = 0;
+    FilesToSearch(const std::string& table_id, const std::vector<size_t>& ids, TableFilesSchema& files) = 0;
 
     virtual Status
-    FilesToMerge(const std::string& table_id, DatePartionedTableFilesSchema& files) = 0;
+    FilesToMerge(const std::string& table_id, TableFilesSchema& files) = 0;
 
     virtual Status
     FilesToIndex(TableFilesSchema&) = 0;
@@ -129,6 +140,12 @@ class Meta {
 
     virtual Status
     Count(const std::string& table_id, uint64_t& result) = 0;
+
+    virtual Status
+    SetGlobalLastLSN(uint64_t lsn) = 0;
+
+    virtual Status
+    GetGlobalLastLSN(uint64_t& lsn) = 0;
 };  // MetaData
 
 using MetaPtr = std::shared_ptr<Meta>;

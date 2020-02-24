@@ -44,7 +44,7 @@ class DB {
     CreateTable(meta::TableSchema& table_schema_) = 0;
 
     virtual Status
-    DropTable(const std::string& table_id, const meta::DatesT& dates) = 0;
+    DropTable(const std::string& table_id) = 0;
 
     virtual Status
     DescribeTable(meta::TableSchema& table_schema_) = 0;
@@ -54,6 +54,9 @@ class DB {
 
     virtual Status
     AllTables(std::vector<meta::TableSchema>& table_schema_array) = 0;
+
+    virtual Status
+    GetTableInfo(const std::string& table_id, TableInfo& table_info) = 0;
 
     virtual Status
     GetTableRowCount(const std::string& table_id, uint64_t& row_count) = 0;
@@ -81,19 +84,40 @@ class DB {
     InsertVectors(const std::string& table_id, const std::string& partition_tag, VectorsData& vectors) = 0;
 
     virtual Status
+    DeleteVector(const std::string& table_id, IDNumber vector_id) = 0;
+
+    virtual Status
+    DeleteVectors(const std::string& table_id, IDNumbers vector_ids) = 0;
+
+    virtual Status
+    Flush(const std::string& table_id) = 0;
+
+    virtual Status
+    Flush() = 0;
+
+    virtual Status
+    Compact(const std::string& table_id) = 0;
+
+    virtual Status
+    GetVectorByID(const std::string& table_id, const IDNumber& vector_id, VectorsData& vector) = 0;
+
+    //    virtual Status
+    //    Merge(const std::set<std::string>& table_ids) = 0;
+
+    virtual Status
+    QueryByID(const std::shared_ptr<server::Context>& context, const std::string& table_id,
+              const std::vector<std::string>& partition_tags, uint64_t k, uint64_t nprobe, IDNumber vector_id,
+              ResultIds& result_ids, ResultDistances& result_distances) = 0;
+
+    virtual Status
     Query(const std::shared_ptr<server::Context>& context, const std::string& table_id,
           const std::vector<std::string>& partition_tags, uint64_t k, uint64_t nprobe, const VectorsData& vectors,
           ResultIds& result_ids, ResultDistances& result_distances) = 0;
 
     virtual Status
-    Query(const std::shared_ptr<server::Context>& context, const std::string& table_id,
-          const std::vector<std::string>& partition_tags, uint64_t k, uint64_t nprobe, const VectorsData& vectors,
-          const meta::DatesT& dates, ResultIds& result_ids, ResultDistances& result_distances) = 0;
-
-    virtual Status
     QueryByFileID(const std::shared_ptr<server::Context>& context, const std::string& table_id,
                   const std::vector<std::string>& file_ids, uint64_t k, uint64_t nprobe, const VectorsData& vectors,
-                  const meta::DatesT& dates, ResultIds& result_ids, ResultDistances& result_distances) = 0;
+                  ResultIds& result_ids, ResultDistances& result_distances) = 0;
 
     virtual Status
     Size(uint64_t& result) = 0;

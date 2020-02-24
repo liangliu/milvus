@@ -11,28 +11,27 @@
 
 #pragma once
 
+#include "server/delivery/request/BaseRequest.h"
+
 #include <memory>
 #include <string>
-
-#include "server/delivery/request/BaseRequest.h"
 
 namespace milvus {
 namespace server {
 
-class DeleteByDateRequest : public BaseRequest {
+class CompactRequest : public BaseRequest {
  public:
     static BaseRequestPtr
-    Create(const std::shared_ptr<Context>& context, const std::string& table_name, const Range& range);
+    Create(const std::shared_ptr<Context>& context, const std::string& table_name);
 
  protected:
-    DeleteByDateRequest(const std::shared_ptr<Context>& context, const std::string& table_name, const Range& range);
+    CompactRequest(const std::shared_ptr<Context>& context, const std::string& table_name);
 
     Status
     OnExecute() override;
 
  private:
     const std::string table_name_;
-    const Range& range_;
 };
 
 }  // namespace server

@@ -1,23 +1,31 @@
-// Copyright (C) 2019-2020 Zilliz. All rights reserved.
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
 //
-// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance
-// with the License. You may obtain a copy of the License at
+//   http://www.apache.org/licenses/LICENSE-2.0
 //
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software distributed under the License
-// is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
-// or implied. See the License for the specific language governing permissions and limitations under the License.
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 #include "db/engine/ExecutionEngineImpl.h"
 
-#include <fiu-local.h>
+#include <faiss/utils/ConcurrentBitset.h>
+
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include "cache/CpuCacheMgr.h"
 #include "cache/GpuCacheMgr.h"
+#include "db/Utils.h"
 #include "knowhere/common/Config.h"
 #include "metrics/Metrics.h"
 #include "scheduler/Utils.h"
@@ -26,7 +34,6 @@
 #include "utils/Exception.h"
 #include "utils/Log.h"
 #include "utils/ValidationUtil.h"
-
 #include "wrapper/BinVecImpl.h"
 #include "wrapper/ConfAdapter.h"
 #include "wrapper/ConfAdapterMgr.h"
@@ -134,10 +141,7 @@ ExecutionEngineImpl::CreatetVecIndex(EngineType type) {
     server::Config& config = server::Config::GetInstance();
     bool gpu_resource_enable = true;
     config.GetGpuResourceConfigEnable(gpu_resource_enable);
-    fiu_do_on("ExecutionEngineImpl.CreatetVecIndex.gpu_res_disabled", gpu_resource_enable = false);
 #endif
-
-    fiu_do_on("ExecutionEngineImpl.CreatetVecIndex.invalid_type", type = EngineType::INVALID);
     std::shared_ptr<VecIndex> index;
     switch (type) {
         case EngineType::FAISS_IDMAP: {
@@ -193,10 +197,6 @@ ExecutionEngineImpl::CreatetVecIndex(EngineType type) {
         }
         case EngineType::SPTAG_BKT: {
             index = GetVecIndexFactory(IndexType::SPTAG_BKT_RNT_CPU);
-            break;
-        }
-        case EngineType::HNSW: {
-            index = GetVecIndexFactory(IndexType::HNSW);
             break;
         }
         case EngineType::FAISS_BIN_IDMAP: {
@@ -356,6 +356,7 @@ ExecutionEngineImpl::Serialize() {
     return status;
 }
 
+/*
 Status
 ExecutionEngineImpl::Load(bool to_cache) {
     index_ = std::static_pointer_cast<VecIndex>(cache::CpuCacheMgr::GetInstance()->GetIndex(location_));
@@ -383,6 +384,125 @@ ExecutionEngineImpl::Load(bool to_cache) {
     }
     return Status::OK();
 }
+*/
+
+Status
+ExecutionEngineImpl::Load(bool to_cache) {
+    // TODO(zhiru): refactor
+
+    index_ = std::static_pointer_cast<VecIndex>(cache::CpuCacheMgr::GetInstance()->GetIndex(location_));
+    bool already_in_cache = (index_ != nullptr);
+    if (!already_in_cache) {
+        std::string segment_dir;
+        utils::GetParentPath(location_, segment_dir);
+        auto segment_reader_ptr = std::make_shared<segment::SegmentReader>(segment_dir);
+
+        if (index_type_ == EngineType::FAISS_IDMAP || index_type_ == EngineType::FAISS_BIN_IDMAP) {
+            index_ = index_type_ == EngineType::FAISS_IDMAP ? GetVecIndexFactory(IndexType::FAISS_IDMAP)
+                                                            : GetVecIndexFactory(IndexType::FAISS_BIN_IDMAP);
+
+            TempMetaConf temp_conf;
+            temp_conf.gpu_id = gpu_num_;
+            temp_conf.dim = dim_;
+            auto status = MappingMetricType(metric_type_, temp_conf.metric_type);
+            if (!status.ok()) {
+                return status;
+            }
+
+            auto adapter = AdapterMgr::GetInstance().GetAdapter(index_->GetType());
+            auto conf = adapter->Match(temp_conf);
+
+            status = segment_reader_ptr->Load();
+            if (!status.ok()) {
+                std::string msg = "Failed to load segment from " + location_;
+                ENGINE_LOG_ERROR << msg;
+                return Status(DB_ERROR, msg);
+            }
+
+            segment::SegmentPtr segment_ptr;
+            segment_reader_ptr->GetSegment(segment_ptr);
+            auto& vectors = segment_ptr->vectors_ptr_;
+            auto& deleted_docs = segment_ptr->deleted_docs_ptr_->GetDeletedDocs();
+
+            auto vectors_data = vectors->GetData();
+
+            faiss::ConcurrentBitsetPtr concurrent_bitset_ptr =
+                std::make_shared<faiss::ConcurrentBitset>(vectors->GetCount());
+            for (auto& offset : deleted_docs) {
+                if (!concurrent_bitset_ptr->test(offset)) {
+                    concurrent_bitset_ptr->set(offset);
+                }
+            }
+
+            ErrorCode ec = KNOWHERE_UNEXPECTED_ERROR;
+            if (index_type_ == EngineType::FAISS_IDMAP) {
+                std::vector<float> float_vectors;
+                float_vectors.resize(vectors_data.size() / sizeof(float));
+                memcpy(float_vectors.data(), vectors_data.data(), vectors_data.size());
+                ec = std::static_pointer_cast<BFIndex>(index_)->Build(conf);
+                if (ec != KNOWHERE_SUCCESS) {
+                    return status;
+                }
+                status = std::static_pointer_cast<BFIndex>(index_)->AddWithoutIds(vectors->GetCount(),
+                                                                                  float_vectors.data(), Config());
+                status = std::static_pointer_cast<BFIndex>(index_)->SetBlacklist(concurrent_bitset_ptr);
+            } else if (index_type_ == EngineType::FAISS_BIN_IDMAP) {
+                ec = std::static_pointer_cast<BinBFIndex>(index_)->Build(conf);
+                if (ec != KNOWHERE_SUCCESS) {
+                    return status;
+                }
+                status = std::static_pointer_cast<BinBFIndex>(index_)->AddWithoutIds(vectors->GetCount(),
+                                                                                     vectors_data.data(), Config());
+                status = std::static_pointer_cast<BinBFIndex>(index_)->SetBlacklist(concurrent_bitset_ptr);
+            }
+            if (!status.ok()) {
+                return status;
+            }
+
+        } else {
+            try {
+                double physical_size = PhysicalSize();
+                server::CollectExecutionEngineMetrics metrics(physical_size);
+                index_ = read_index(location_);
+
+                segment::DeletedDocsPtr deleted_docs_ptr;
+                auto status = segment_reader_ptr->LoadDeletedDocs(deleted_docs_ptr);
+                if (!status.ok()) {
+                    std::string msg = "Failed to load deleted docs from " + location_;
+                    ENGINE_LOG_ERROR << msg;
+                    return Status(DB_ERROR, msg);
+                }
+                auto& deleted_docs = deleted_docs_ptr->GetDeletedDocs();
+
+                faiss::ConcurrentBitsetPtr concurrent_bitset_ptr =
+                    std::make_shared<faiss::ConcurrentBitset>(index_->Count());
+                for (auto& offset : deleted_docs) {
+                    if (!concurrent_bitset_ptr->test(offset)) {
+                        concurrent_bitset_ptr->set(offset);
+                    }
+                }
+
+                index_->SetBlacklist(concurrent_bitset_ptr);
+
+                if (index_ == nullptr) {
+                    std::string msg = "Failed to load index from " + location_;
+                    ENGINE_LOG_ERROR << msg;
+                    return Status(DB_ERROR, msg);
+                } else {
+                    ENGINE_LOG_DEBUG << "Disk io from: " << location_;
+                }
+            } catch (std::exception& e) {
+                ENGINE_LOG_ERROR << e.what();
+                return Status(DB_ERROR, e.what());
+            }
+        }
+    }
+
+    if (!already_in_cache && to_cache) {
+        Cache();
+    }
+    return Status::OK();
+}  // namespace engine
 
 Status
 ExecutionEngineImpl::CopyToGpu(uint64_t device_id, bool hybrid) {
@@ -520,6 +640,7 @@ ExecutionEngineImpl::CopyToCpu() {
 //    return ret;
 //}
 
+/*
 Status
 ExecutionEngineImpl::Merge(const std::string& location) {
     if (location == location_) {
@@ -564,6 +685,7 @@ ExecutionEngineImpl::Merge(const std::string& location) {
         return Status(DB_ERROR, "file index type is not idmap");
     }
 }
+*/
 
 ExecutionEnginePtr
 ExecutionEngineImpl::BuildIndex(const std::string& location, EngineType engine_type) {
@@ -719,6 +841,140 @@ ExecutionEngineImpl::Search(int64_t n, const uint8_t* data, int64_t k, int64_t n
     }
 
     auto status = index_->Search(n, data, distances, labels, conf);
+
+    if (hybrid) {
+        HybridUnset();
+    }
+
+    if (!status.ok()) {
+        ENGINE_LOG_ERROR << "Search error:" << status.message();
+    }
+    return status;
+}
+
+Status
+ExecutionEngineImpl::Search(int64_t n, const std::vector<int64_t>& ids, int64_t k, int64_t nprobe, float* distances,
+                            int64_t* labels, bool hybrid) {
+    if (index_ == nullptr) {
+        ENGINE_LOG_ERROR << "ExecutionEngineImpl: index is null, failed to search";
+        return Status(DB_ERROR, "index is null");
+    }
+
+    ENGINE_LOG_DEBUG << "Search by ids Params: [k]  " << k << " [nprobe] " << nprobe;
+
+    // TODO(linxj): remove here. Get conf from function
+    TempMetaConf temp_conf;
+    temp_conf.k = k;
+    temp_conf.nprobe = nprobe;
+
+    auto adapter = AdapterMgr::GetInstance().GetAdapter(index_->GetType());
+    auto conf = adapter->MatchSearch(temp_conf, index_->GetType());
+
+    if (hybrid) {
+        HybridLoad();
+    }
+
+    std::string segment_dir;
+    utils::GetParentPath(location_, segment_dir);
+    segment::SegmentReader segment_reader(segment_dir);
+    //    segment::IdBloomFilterPtr id_bloom_filter_ptr;
+    //    segment_reader.LoadBloomFilter(id_bloom_filter_ptr);
+
+    // Check if the id is present. If so, find its offset
+    std::vector<int64_t> offsets;
+    std::vector<segment::doc_id_t> uids;
+    auto status = segment_reader.LoadUids(uids);
+    if (!status.ok()) {
+        return status;
+    }
+
+    // There is only one id in ids
+    for (auto& id : ids) {
+        //        if (id_bloom_filter_ptr->Check(id)) {
+        //            if (uids.empty()) {
+        //                segment_reader.LoadUids(uids);
+        //            }
+        //            auto found = std::find(uids.begin(), uids.end(), id);
+        //            if (found != uids.end()) {
+        //                auto offset = std::distance(uids.begin(), found);
+        //                offsets.emplace_back(offset);
+        //            }
+        //        }
+        auto found = std::find(uids.begin(), uids.end(), id);
+        if (found != uids.end()) {
+            auto offset = std::distance(uids.begin(), found);
+            offsets.emplace_back(offset);
+        }
+    }
+
+    status = Status::OK();
+    if (!offsets.empty()) {
+        status = index_->SearchById(offsets.size(), offsets.data(), distances, labels, conf);
+    }
+
+    if (hybrid) {
+        HybridUnset();
+    }
+
+    if (!status.ok()) {
+        ENGINE_LOG_ERROR << "Search error:" << status.message();
+    }
+    return status;
+}
+
+Status
+ExecutionEngineImpl::GetVectorByID(const int64_t& id, float* vector, bool hybrid) {
+    if (index_ == nullptr) {
+        ENGINE_LOG_ERROR << "ExecutionEngineImpl: index is null, failed to search";
+        return Status(DB_ERROR, "index is null");
+    }
+
+    // TODO(linxj): remove here. Get conf from function
+    TempMetaConf temp_conf;
+
+    auto adapter = AdapterMgr::GetInstance().GetAdapter(index_->GetType());
+    auto conf = adapter->MatchSearch(temp_conf, index_->GetType());
+
+    if (hybrid) {
+        HybridLoad();
+    }
+
+    // Only one id for now
+    std::vector<int64_t> ids{id};
+    auto status = index_->GetVectorById(1, ids.data(), vector, conf);
+
+    if (hybrid) {
+        HybridUnset();
+    }
+
+    if (!status.ok()) {
+        ENGINE_LOG_ERROR << "Search error:" << status.message();
+    }
+    return status;
+}
+
+Status
+ExecutionEngineImpl::GetVectorByID(const int64_t& id, uint8_t* vector, bool hybrid) {
+    if (index_ == nullptr) {
+        ENGINE_LOG_ERROR << "ExecutionEngineImpl: index is null, failed to search";
+        return Status(DB_ERROR, "index is null");
+    }
+
+    ENGINE_LOG_DEBUG << "Get binary vector by id:  " << id;
+
+    // TODO(linxj): remove here. Get conf from function
+    TempMetaConf temp_conf;
+
+    auto adapter = AdapterMgr::GetInstance().GetAdapter(index_->GetType());
+    auto conf = adapter->MatchSearch(temp_conf, index_->GetType());
+
+    if (hybrid) {
+        HybridLoad();
+    }
+
+    // Only one id for now
+    std::vector<int64_t> ids{id};
+    auto status = index_->GetVectorById(1, ids.data(), vector, conf);
 
     if (hybrid) {
         HybridUnset();
