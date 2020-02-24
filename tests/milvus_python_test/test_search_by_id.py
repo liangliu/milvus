@@ -16,12 +16,10 @@ dim = 128
 table_id = "test_search"
 add_interval_time = 2
 vectors = gen_vectors(6000, dim)
-# vectors /= numpy.linalg.norm(vectors)
-# vectors = vectors.tolist()
 nprobe = 1
 epsilon = 0.001
 tag = "overallpaper"
-non_exist_id = 9527
+non_exist_id = 95270
 small_size = 2500
 raw_vectors, binary_vectors = gen_binary_vectors(6000, dim)
 
