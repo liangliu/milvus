@@ -9,6 +9,8 @@ import arrow
 from faker import Faker
    
 # ----------------------------------- gpu_resources -----------------------------------
+# test gpu resources switch of http functions
+# ----------------------------------- gpu_resources -----------------------------------
 
 class TestHTTPGPU:
 

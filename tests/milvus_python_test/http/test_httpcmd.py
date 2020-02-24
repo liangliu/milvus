@@ -8,6 +8,8 @@ import arrow
 from faker import Faker
     
 # ----------------------------------- command -----------------------------------
+# test cmd interface of http functions
+# ----------------------------------- command -----------------------------------
 class TestHTTPCMD:
 
     # 1. version    => ServerVersion()

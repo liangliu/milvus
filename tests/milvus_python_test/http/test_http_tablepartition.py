@@ -9,6 +9,8 @@ from faker import Faker
     
     
 # ----------------------------------- partition -----------------------------------
+# test table partition interface of http functions
+# ----------------------------------- partition -----------------------------------
 class TestHTTPTablePartition:
     fa = Faker()
 

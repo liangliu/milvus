@@ -8,6 +8,8 @@ import arrow
 from faker import Faker
 
 # ----------------------------------- table -----------------------------------
+# test table index interface of http functions
+# ----------------------------------- table -----------------------------------
 class TestHTTPTableIndex:
     fa = Faker()
 

@@ -9,6 +9,8 @@ from faker import Faker
 import time
     
 # ----------------------------------- table -----------------------------------
+# test table interface of http functions
+# ----------------------------------- table -----------------------------------
 class TestHTTPTable:
     
     # @classmethod

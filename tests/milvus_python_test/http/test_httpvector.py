@@ -9,6 +9,8 @@ from faker import Faker
    
    
 # ----------------------------------- vectors -----------------------------------
+# test vector interface of http functions
+# ----------------------------------- vectors -----------------------------------
 class TestHTTPVector:
     small_size = 10000
     normal_size = 100000

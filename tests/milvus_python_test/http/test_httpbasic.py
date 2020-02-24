@@ -6,6 +6,10 @@ import copy
 import random
 
 # ----------------------------------- basic -----------------------------------
+# test basic functions of http interface
+# ----------------------------------- basic -----------------------------------
+
+
 class TestHTTPBasic:
 
     default_conf = {'cpu_cache_capacity': 4, 'cache_insert_data': False, 'use_blas_threshold': 1100, 'gpu_search_threshold': 1000}
